@@ -1,0 +1,24 @@
+node_modules/
+.expo/
+dist/
+build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# ⚠️ NUNCA commite estes arquivos — contêm credenciais secretas
+google-services.json
+google-service-account.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*

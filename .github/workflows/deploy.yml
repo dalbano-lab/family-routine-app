@@ -1,0 +1,158 @@
+name: 🚀 Deploy — Google Play Store
+
+on:
+  # Dispara automaticamente ao fazer push na branch main
+  push:
+    branches: [main]
+
+  # Ou manualmente pelo GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Track do Google Play'
+        required: true
+        default: 'internal'
+        type: choice
+        options:
+          - internal    # testadores internos (instantâneo)
+          - beta        # teste aberto
+          - production  # loja pública (revisão 1-3 dias)
+      bump_version:
+        description: 'Incrementar versão?'
+        required: true
+        default: true
+        type: boolean
+
+# ── Permissões ────────────────────────────────────────────────
+permissions:
+  contents: write   # para commitar bump de versão
+
+jobs:
+  deploy:
+    name: Build & Deploy Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Node.js ─────────────────────────────────────────
+      - name: ⚙️ Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── 3. Instalar dependências ───────────────────────────
+      - name: 📦 Instalar dependências
+        run: npm ci
+
+      # ── 4. Setup EAS ───────────────────────────────────────
+      - name: 🔧 Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      # ── 5. Criar google-services.json ─────────────────────
+      - name: 🔑 Criar google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" > google-services.json
+
+      # ── 6. Criar google-service-account.json ──────────────
+      - name: 🔑 Criar service account (Play Store)
+        env:
+          GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
+        run: echo "$GOOGLE_SERVICE_ACCOUNT" > google-service-account.json
+
+      # ── 7. Bump versionCode ────────────────────────────────
+      - name: 🔢 Incrementar versionCode
+        if: ${{ inputs.bump_version != false }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const app = JSON.parse(fs.readFileSync('app.json','utf8'));
+            const old = app.expo.android.versionCode;
+            app.expo.android.versionCode = old + 1;
+            fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+            console.log('versionCode: ' + old + ' → ' + (old + 1));
+          "
+
+      # ── 8. Commit version bump ────────────────────────────
+      - name: 💾 Commitar versionCode
+        if: ${{ inputs.bump_version != false }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add app.json
+          git diff --staged --quiet || git commit -m "chore: bump versionCode [skip ci]"
+          git push
+
+      # ── 9. Build AAB ───────────────────────────────────────
+      - name: 🔨 Build AAB (Android App Bundle)
+        run: |
+          eas build \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --no-wait \
+            --json > build_output.json
+          
+          BUILD_ID=$(cat build_output.json | node -e \
+            "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.id)")
+          echo "BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
+          echo "Build iniciado: $BUILD_ID"
+
+      # ── 10. Aguardar build ────────────────────────────────
+      - name: ⏳ Aguardar build finalizar
+        run: |
+          echo "Aguardando build $BUILD_ID..."
+          MAX_WAIT=3600   # 60 minutos
+          ELAPSED=0
+          INTERVAL=30
+          
+          while true; do
+            STATUS=$(eas build:view $BUILD_ID --json | \
+              node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); console.log(d.status)")
+            echo "  Status: $STATUS (${ELAPSED}s)"
+            
+            if [ "$STATUS" = "FINISHED" ]; then
+              echo "✅ Build finalizado!"
+              break
+            elif [ "$STATUS" = "ERRORED" ] || [ "$STATUS" = "CANCELED" ]; then
+              echo "❌ Build falhou: $STATUS"
+              exit 1
+            fi
+            
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+            [ $ELAPSED -ge $MAX_WAIT ] && { echo "❌ Timeout"; exit 1; }
+          done
+
+      # ── 11. Submit para Play Store ────────────────────────
+      - name: 🚀 Publicar no Google Play
+        env:
+          TRACK: ${{ inputs.track || 'internal' }}
+        run: |
+          eas submit \
+            --platform android \
+            --latest \
+            --track "$TRACK" \
+            --non-interactive
+
+      # ── 12. Notificação de sucesso ────────────────────────
+      - name: 🎉 Publicado com sucesso!
+        run: |
+          TRACK="${{ inputs.track || 'internal' }}"
+          echo ""
+          echo "╔══════════════════════════════════════════╗"
+          echo "║  ✅  App publicado na Play Store!        ║"
+          echo "║  Track: $TRACK                           ║"
+          echo "╚══════════════════════════════════════════╝"
+          echo ""
+          echo "Acesse: https://play.google.com/console"
