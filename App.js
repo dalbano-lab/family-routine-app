@@ -1,8 +1,7 @@
 import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import mobileAds from 'react-native-google-mobile-ads';
 
 import { AppProvider } from './src/AppContext';
 import HomeScreen from './src/screens/HomeScreen';
@@ -12,15 +11,6 @@ import { SettingsScreen, EditMemberScreen } from './src/screens/SettingsScreen';
 const Stack = createStackNavigator();
 
 export default function App() {
-  useEffect(() => {
-    // Initialize AdMob SDK
-    mobileAds()
-      .initialize()
-      .then(adapterStatuses => {
-        console.log('AdMob initialized:', adapterStatuses);
-      });
-  }, []);
-
   return (
     <AppProvider>
       <NavigationContainer>
