@@ -11,7 +11,6 @@ build/
 web-build/
 
 # ⚠️ NUNCA commite estes arquivos — contêm credenciais secretas
-google-services.json
 google-service-account.json
 
 # OS
