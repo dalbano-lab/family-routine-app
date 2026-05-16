@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "232585113742",
+    "project_id": "familyroutine-3329d",
+    "storage_bucket": "familyroutine-3329d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:232585113742:android:c78f1f307692d06f7a19df",
+        "android_client_info": {
+          "package_name": "com.seuapp.familyroutine"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhjDPRMuqzZImcRw9BFiEk_v8CvWAwFjY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
