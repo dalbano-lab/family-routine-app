@@ -42,6 +42,9 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate('Settings')}>
               <Text style={styles.iconBtnText}>⚙️</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: 'rgba(255,255,255,0.35)' }]} onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.iconBtnText}>🚪</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

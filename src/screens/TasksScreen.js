@@ -1,25 +1,41 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   StyleSheet, Image, SafeAreaView, StatusBar, Animated,
+  Modal, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AppContext } from '../AppContext';
 import { PALETTE, PERIODS, getRank } from '../constants';
-import AdBanner from '../components/AdBanner';
 
 export default function TasksScreen({ route, navigation }) {
   const { memberId } = route.params;
   const { family, checked, toggleCheck, updMember, getpts } = useContext(AppContext);
 
   const member = family.members.find(m => m.id === memberId);
-  const pal    = PALETTE[member.colorIdx];
+  const pal    = PALETTE[member?.colorIdx || 0];
 
-  const [period,   setPeriod]  = useState('manha');
-  const [addMode,  setAddMode] = useState(false);
-  const [newTask,  setNewTask] = useState('');
-  const [plusShow, setPlusShow]= useState(false);
-  const [allDone,  setAllDone] = useState(false);
+  const [period,      setPeriod]      = useState('manha');
+  const [addMode,     setAddMode]     = useState(false);
+  const [newTask,     setNewTask]     = useState('');
+  const [alarmModal,  setAlarmModal]  = useState(null); // period id
+  const [alarmInput,  setAlarmInput]  = useState('');
+
+  // +1 star animation
+  const plusAnim  = useRef(new Animated.Value(0)).current;
+  const plusOpacity = useRef(new Animated.Value(0)).current;
+
+  const showPlusAnim = () => {
+    plusAnim.setValue(0);
+    plusOpacity.setValue(1);
+    Animated.parallel([
+      Animated.timing(plusAnim, { toValue: -80, duration: 900, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.delay(400),
+        Animated.timing(plusOpacity, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+    ]).start();
+  };
 
   if (!member) { navigation.goBack(); return null; }
 
@@ -31,16 +47,7 @@ export default function TasksScreen({ route, navigation }) {
 
   const handleToggle = (i) => {
     const newVal = toggleCheck(memberId, period, i);
-    if (newVal) {
-      setPlusShow(true);
-      setTimeout(() => setPlusShow(false), 900);
-      // check if all done
-      const newDone = tasks.filter((_, j) => (j === i ? true : isChk(j))).length;
-      if (newDone === tasks.length) {
-        setAllDone(true);
-        setTimeout(() => setAllDone(false), 3000);
-      }
-    }
+    if (newVal) showPlusAnim();
   };
 
   const doAddTask = () => {
@@ -57,36 +64,74 @@ export default function TasksScreen({ route, navigation }) {
     });
   };
 
+  const openAlarmModal = (p) => {
+    setAlarmInput(member.alarms[p]);
+    setAlarmModal(p);
+  };
+
+  const saveAlarm = () => {
+    if (!alarmModal) return;
+    updMember(memberId, {
+      alarms: { ...member.alarms, [alarmModal]: alarmInput },
+    });
+    setAlarmModal(null);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
 
-      {/* +1 float */}
-      {plusShow && (
-        <View style={styles.plusFloat} pointerEvents="none">
-          <Text style={styles.plusText}>+1 ⭐</Text>
-        </View>
-      )}
+      {/* +1 star animation */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.plusFloat, { transform: [{ translateY: plusAnim }], opacity: plusOpacity }]}
+      >
+        <Text style={styles.plusText}>+1 ⭐</Text>
+      </Animated.View>
 
-      {/* All done banner */}
-      {allDone && (
-        <View style={styles.doneBanner}>
-          <Text style={styles.doneText}>🎉 +{tasks.length} pontos!</Text>
+      {/* Alarm edit modal */}
+      <Modal visible={!!alarmModal} transparent animationType="slide" onRequestClose={() => setAlarmModal(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>
+              ⏰ Alarme — {PERIODS.find(p => p.id === alarmModal)?.label}
+            </Text>
+            <Text style={styles.modalSub}>Digite o horário (HH:MM)</Text>
+            <TextInput
+              value={alarmInput}
+              onChangeText={setAlarmInput}
+              placeholder="07:00"
+              keyboardType="numeric"
+              style={[styles.alarmInput, { borderColor: pal.bg }]}
+              maxLength={5}
+              autoFocus
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setAlarmModal(null)}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalSave, { backgroundColor: pal.bg }]} onPress={saveAlarm}>
+                <Text style={styles.modalSaveText}>Salvar ✓</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      )}
+      </Modal>
 
       {/* Header */}
-      <LinearGradient
-        colors={[pal.bg, pal.bg + 'CC']}
-        style={styles.header}
-      >
+      <LinearGradient colors={[pal.bg, pal.bg + 'CC']} style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Text style={styles.backText}>← Voltar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('EditMember', { memberId })}>
-            <Text style={styles.backText}>✏️ Editar</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('EditMember', { memberId })}>
+              <Text style={styles.backText}>👤 Perfil</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.backBtn, { backgroundColor: 'rgba(255,255,255,0.35)' }]} onPress={() => navigation.navigate('Home')}>
+              <Text style={styles.backText}>🚪</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.heroRow}>
@@ -141,9 +186,9 @@ export default function TasksScreen({ route, navigation }) {
         </View>
         <TouchableOpacity
           style={[styles.editAlarmBtn, { backgroundColor: pal.light }]}
-          onPress={() => navigation.navigate('EditMember', { memberId, focusAlarm: period })}
+          onPress={() => openAlarmModal(period)}
         >
-          <Text style={[styles.editAlarmText, { color: pal.bg }]}>✏️ Editar</Text>
+          <Text style={[styles.editAlarmText, { color: pal.bg }]}>⏰ Editar</Text>
         </TouchableOpacity>
       </View>
 
@@ -162,7 +207,7 @@ export default function TasksScreen({ route, navigation }) {
               <Text style={[styles.taskText, ck && styles.taskDone]}>{task}</Text>
               <View style={[styles.ptChip, { backgroundColor: ck ? pal.bg : pal.light }]}>
                 <Text style={[styles.ptChipText, { color: ck ? '#fff' : pal.bg }]}>
-                  {ck ? '⭐ +1 pt' : '1 pt'}
+                  {ck ? '⭐ +1' : '1 pt'}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => removeTask(idx)} style={styles.removeBtn}>
@@ -210,61 +255,67 @@ export default function TasksScreen({ route, navigation }) {
         )}
         <View style={{ height: 20 }} />
       </ScrollView>
-
-      <AdBanner />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe:         { flex: 1, backgroundColor: '#F5F0EB' },
-  plusFloat:    { position: 'absolute', top: '45%', left: 0, right: 0, zIndex: 99, alignItems: 'center', pointerEvents: 'none' },
-  plusText:     { fontSize: 42, fontWeight: '900', color: '#FFD93D', textShadow: '0 3px 14px rgba(0,0,0,.25)' },
-  doneBanner:   { position: 'absolute', top: 60, left: 20, right: 20, zIndex: 98, backgroundColor: '#FF6B6B', borderRadius: 16, padding: 14, alignItems: 'center' },
-  doneText:     { color: '#fff', fontSize: 20, fontWeight: '900' },
-  header:       { paddingTop: 8, paddingHorizontal: 22, paddingBottom: 20, borderBottomLeftRadius: 36, borderBottomRightRadius: 36 },
-  headerTop:    { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
-  backBtn:      { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },
-  backText:     { color: '#fff', fontSize: 13, fontWeight: '800' },
-  heroRow:      { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  avatar:       { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)', overflow: 'hidden' },
-  avatarImg:    { width: '100%', height: '100%' },
-  memberName:   { fontSize: 26, fontWeight: '900', color: '#fff', lineHeight: 28 },
-  subText:      { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '700', marginTop: 2 },
-  ptsBadge:     { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
-  ptsNum:       { fontSize: 28, fontWeight: '900', color: '#FFD93D', lineHeight: 30 },
-  ptsLabel:     { fontSize: 9, color: 'rgba(255,255,255,0.8)', fontWeight: '800', letterSpacing: 1 },
-  progressBg:   { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 10, height: 6, marginTop: 14, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 10, backgroundColor: '#FFD93D' },
-  pctText:      { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '800', marginTop: 4 },
-  tabs:         { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 },
-  tab:          { flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 10, alignItems: 'center', gap: 2, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 3 },
-  tabLabel:     { fontSize: 13, fontWeight: '800' },
-  tabCount:     { fontSize: 10, fontWeight: '700' },
-  alarmRow:     { margin: 18, marginBottom: 0, backgroundColor: '#fff', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  alarmLabel:   { fontSize: 10, color: '#bbb', fontWeight: '700' },
-  alarmTime:    { fontSize: 17, fontWeight: '900' },
-  editAlarmBtn: { borderRadius: 12, paddingHorizontal: 13, paddingVertical: 7 },
-  editAlarmText:{ fontWeight: '800', fontSize: 12 },
-  taskList:     { paddingHorizontal: 18, paddingTop: 12 },
-  taskRow:      { backgroundColor: '#fff', borderRadius: 16, padding: 13, marginBottom: 9, flexDirection: 'row', alignItems: 'center', gap: 11, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  checkbox:     { width: 28, height: 28, borderRadius: 9, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
-  taskText:     { flex: 1, fontSize: 15, fontWeight: '700', color: '#333' },
-  taskDone:     { textDecorationLine: 'line-through' },
-  ptChip:       { borderRadius: 10, paddingHorizontal: 9, paddingVertical: 4 },
-  ptChipText:   { fontSize: 11, fontWeight: '900' },
-  removeBtn:    { padding: 2 },
-  removeTxt:    { color: '#ddd', fontSize: 16 },
-  addRow:       { backgroundColor: '#fff', borderRadius: 16, padding: 11, marginBottom: 9, flexDirection: 'row', alignItems: 'center', gap: 8, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  addInput:     { flex: 1, borderWidth: 2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontWeight: '700' },
-  addOkBtn:     { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  addOkText:    { color: '#fff', fontWeight: '800' },
-  addCancelBtn: { backgroundColor: '#f0f0f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
-  addTaskBtn:   { borderWidth: 2, borderStyle: 'dashed', borderRadius: 16, padding: 13, marginBottom: 9, alignItems: 'center' },
-  addTaskText:  { fontWeight: '800', fontSize: 14 },
-  allDoneBox:   { alignItems: 'center', paddingVertical: 20 },
-  allDoneTitle: { fontSize: 20, fontWeight: '900', marginTop: 6 },
-  bonusBox:     { backgroundColor: '#FFF8DC', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 10, marginTop: 8, borderWidth: 2, borderColor: '#FFD93D' },
-  bonusText:    { fontSize: 18, fontWeight: '900', color: '#E6A800' },
-  totalText:    { color: '#aaa', fontSize: 12, fontWeight: '700', marginTop: 8 },
+  safe:           { flex: 1, backgroundColor: '#F5F0EB' },
+  plusFloat:      { position: 'absolute', top: '45%', left: 0, right: 0, zIndex: 99, alignItems: 'center' },
+  plusText:       { fontSize: 44, fontWeight: '900', color: '#FFD93D', textShadowColor: 'rgba(0,0,0,0.2)', textShadowOffset: { width: 0, height: 3 }, textShadowRadius: 6 },
+  modalOverlay:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet:     { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, paddingBottom: 48 },
+  modalTitle:     { fontSize: 20, fontWeight: '900', color: '#333', marginBottom: 6 },
+  modalSub:       { fontSize: 13, color: '#aaa', fontWeight: '600', marginBottom: 16 },
+  alarmInput:     { borderWidth: 2, borderRadius: 14, padding: 14, fontSize: 28, fontWeight: '900', textAlign: 'center', color: '#333', marginBottom: 20 },
+  modalBtns:      { flexDirection: 'row', gap: 10 },
+  modalCancel:    { flex: 1, backgroundColor: '#f0f0f0', borderRadius: 14, padding: 14, alignItems: 'center' },
+  modalCancelText:{ fontWeight: '800', color: '#666', fontSize: 15 },
+  modalSave:      { flex: 2, borderRadius: 14, padding: 14, alignItems: 'center' },
+  modalSaveText:  { fontWeight: '800', color: '#fff', fontSize: 15 },
+  header:         { paddingTop: 8, paddingHorizontal: 22, paddingBottom: 20, borderBottomLeftRadius: 36, borderBottomRightRadius: 36 },
+  headerTop:      { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  backBtn:        { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8 },
+  backText:       { color: '#fff', fontSize: 13, fontWeight: '800' },
+  heroRow:        { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatar:         { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(255,255,255,0.5)', overflow: 'hidden' },
+  avatarImg:      { width: '100%', height: '100%' },
+  memberName:     { fontSize: 26, fontWeight: '900', color: '#fff', lineHeight: 28 },
+  subText:        { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '700', marginTop: 2 },
+  ptsBadge:       { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
+  ptsNum:         { fontSize: 28, fontWeight: '900', color: '#FFD93D', lineHeight: 30 },
+  ptsLabel:       { fontSize: 9, color: 'rgba(255,255,255,0.8)', fontWeight: '800', letterSpacing: 1 },
+  progressBg:     { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 10, height: 6, marginTop: 14, overflow: 'hidden' },
+  progressFill:   { height: '100%', borderRadius: 10, backgroundColor: '#FFD93D' },
+  pctText:        { color: 'rgba(255,255,255,0.9)', fontSize: 11, fontWeight: '800', marginTop: 4 },
+  tabs:           { flexDirection: 'row', gap: 8, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4 },
+  tab:            { flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 10, alignItems: 'center', gap: 2, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 3 },
+  tabLabel:       { fontSize: 13, fontWeight: '800' },
+  tabCount:       { fontSize: 10, fontWeight: '700' },
+  alarmRow:       { margin: 18, marginBottom: 0, backgroundColor: '#fff', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  alarmLabel:     { fontSize: 10, color: '#bbb', fontWeight: '700' },
+  alarmTime:      { fontSize: 17, fontWeight: '900' },
+  editAlarmBtn:   { borderRadius: 12, paddingHorizontal: 13, paddingVertical: 7 },
+  editAlarmText:  { fontWeight: '800', fontSize: 12 },
+  taskList:       { paddingHorizontal: 18, paddingTop: 12 },
+  taskRow:        { backgroundColor: '#fff', borderRadius: 16, padding: 13, marginBottom: 9, flexDirection: 'row', alignItems: 'center', gap: 11, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  checkbox:       { width: 28, height: 28, borderRadius: 9, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center' },
+  taskText:       { flex: 1, fontSize: 15, fontWeight: '700', color: '#333' },
+  taskDone:       { textDecorationLine: 'line-through' },
+  ptChip:         { borderRadius: 10, paddingHorizontal: 9, paddingVertical: 4 },
+  ptChipText:     { fontSize: 11, fontWeight: '900' },
+  removeBtn:      { padding: 2 },
+  removeTxt:      { color: '#ddd', fontSize: 16 },
+  addRow:         { backgroundColor: '#fff', borderRadius: 16, padding: 11, marginBottom: 9, flexDirection: 'row', alignItems: 'center', gap: 8, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  addInput:       { flex: 1, borderWidth: 2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontWeight: '700' },
+  addOkBtn:       { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  addOkText:      { color: '#fff', fontWeight: '800' },
+  addCancelBtn:   { backgroundColor: '#f0f0f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  addTaskBtn:     { borderWidth: 2, borderStyle: 'dashed', borderRadius: 16, padding: 13, marginBottom: 9, alignItems: 'center' },
+  addTaskText:    { fontWeight: '800', fontSize: 14 },
+  allDoneBox:     { alignItems: 'center', paddingVertical: 20 },
+  allDoneTitle:   { fontSize: 20, fontWeight: '900', marginTop: 6 },
+  bonusBox:       { backgroundColor: '#FFF8DC', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 10, marginTop: 8, borderWidth: 2, borderColor: '#FFD93D' },
+  bonusText:      { fontSize: 18, fontWeight: '900', color: '#E6A800' },
+  totalText:      { color: '#aaa', fontSize: 12, fontWeight: '700', marginTop: 8 },
 });
