@@ -32,7 +32,7 @@ export default function HomeScreen({ navigation }) {
         {/* Top bar */}
         <View style={styles.topBar}>
           <View>
-            <Text style={styles.appOf}>App da</Text>
+            <Text style={styles.appOf}>🏠 Rotina da Família</Text>
             <Text style={styles.familyName}>{family.name}</Text>
           </View>
           <View style={styles.topButtons}>
