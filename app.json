@@ -26,16 +26,15 @@
         "backgroundColor": "#FF6B6B"
       },
       "package": "com.seuapp.familyroutine",
-      "versionCode": 8,
+      "versionCode": 9,
        "permissions": [
   	"READ_EXTERNAL_STORAGE",
  	 "WRITE_EXTERNAL_STORAGE",
  	 "CAMERA",
  	 "com.google.android.gms.permission.AD_ID"
 	],
-      "googleServicesFile": "./google-services.json",
-	"buildSdkVersion": 35
-    },
+      "googleServicesFile": "./google-services.json"
+},
     "plugins": [
       [
         "expo-image-picker",
