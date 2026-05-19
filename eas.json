@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.0.0"
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
   },
   "build": {
     "preview": {
@@ -11,6 +12,10 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "node": "18.18.0",
+      "env": {
+        "EXPO_NO_TELEMETRY": "1"
       }
     }
   },
