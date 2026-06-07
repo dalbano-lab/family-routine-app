@@ -35,10 +35,11 @@
       ],
       "googleServicesFile": "./google-services.json"
     },
-    "plugins": [
-      "expo-font",
-      [
-        "expo-image-picker",
+   "plugins": [
+  "./withTargetSdk35",
+  "expo-font",
+  [
+    "expo-image-picker",
         {
           "photosPermission": "Permite adicionar fotos dos integrantes da família.",
           "cameraPermission": "Permite tirar fotos dos integrantes da família."
