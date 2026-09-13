@@ -21,3 +21,7 @@ Thumbs.db
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+
+credentials.json
+keystore_base64.txt
+credentials/
