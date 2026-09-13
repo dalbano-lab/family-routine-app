@@ -11,10 +11,8 @@
     },
     "production": {
       "android": {
-        "buildType": "app-bundle"
-      },
-      "env": {
-        "EXPO_NO_TELEMETRY": "1"
+        "buildType": "app-bundle",
+        "image": "latest"
       }
     }
   }
