@@ -26,7 +26,7 @@
         "backgroundColor": "#FF6B6B"
       },
       "package": "com.seuapp.familyroutine",
-      "versionCode": 18,
+      "versionCode": 19,
       "permissions": [
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
@@ -35,11 +35,20 @@
       ],
       "googleServicesFile": "./google-services.json"
     },
-   "plugins": [
-  "./withTargetSdk35",
-  "expo-font",
-  [
-    "expo-image-picker",
+    "plugins": [
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
         {
           "photosPermission": "Permite adicionar fotos dos integrantes da família.",
           "cameraPermission": "Permite tirar fotos dos integrantes da família."
